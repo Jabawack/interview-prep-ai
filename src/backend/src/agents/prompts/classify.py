@@ -1,0 +1,47 @@
+"""Intent classification definitions — used by the intent parser (no LLM)."""
+
+INTENT_DEFINITIONS = {
+    "job_search": {
+        "description": "User wants to find job postings or analyze a specific job URL",
+        "keywords": [
+            "find jobs", "search jobs", "job openings", "hiring", "job posting",
+            "positions", "roles", "opportunities", "careers", "apply",
+            "remote jobs", "job board", "indeed", "linkedin",
+            "jobs",  # single-word fallback
+        ],
+        # Words that strongly indicate job search even without "jobs" nearby
+        "trigger_words": ["find", "search", "look for", "looking for"],
+        "context_words": ["jobs", "job", "positions", "roles", "openings", "postings"],
+        "url_patterns": [
+            "linkedin.com/jobs", "indeed.com", "glassdoor.com/job",
+            "greenhouse.io", "lever.co", "jobs.ashbyhq.com",
+        ],
+    },
+    "company_research": {
+        "description": "User wants to learn about a company's interview process",
+        "keywords": [
+            "interview process", "interview at", "what's it like",
+            "interview rounds", "culture", "glassdoor", "interview questions",
+            "company review", "work at", "hiring process", "interview pattern",
+        ],
+    },
+    "interview_prep": {
+        "description": "User wants to practice or prepare for interviews",
+        "keywords": [
+            "prepare", "practice", "mock interview", "behavioral",
+            "system design", "coding challenge", "leetcode", "blind 75",
+            "technical interview", "whiteboard", "take-home",
+        ],
+    },
+    "salary_research": {
+        "description": "User wants salary/compensation information",
+        "keywords": [
+            "salary", "compensation", "pay", "levels.fyi", "total comp",
+            "stock", "equity", "negotiate", "offer", "package",
+        ],
+    },
+    "general": {
+        "description": "General conversation or unclear intent",
+        "keywords": [],
+    },
+}
