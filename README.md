@@ -67,15 +67,15 @@ psql $NEON_DATABASE_URL -f migrations/004_interview_prep.sql
 ### Backend
 
 ```bash
-cd src/backend
+cd backend
 pip install -e .
-uvicorn src.main:app --reload --port 8000
+uvicorn src.main:app --reload
 ```
 
 ### Frontend
 
 ```bash
-cd src/frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -85,6 +85,6 @@ The app will be running at [http://localhost:3000](http://localhost:3000).
 ## Testing
 
 ```bash
-cd src/backend
+cd backend
 pytest
 ```
