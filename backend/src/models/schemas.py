@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     message: str
     conversation_id: UUID | None = None
+    model: str | None = None
 
 
 class SaveJobRequest(BaseModel):

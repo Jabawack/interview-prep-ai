@@ -1,21 +1,12 @@
-"""Central export for all agents."""
+"""Central agent registry — labels, available keys, and factory re-export."""
 
-from src.agents.subagents.company_research import company_research_agent
-from src.agents.subagents.job_search import job_search_agent
+from src.agents.factory import create_agent
 
-AGENT_LOOKUP = {
-    "job_search": job_search_agent,
-    "company_research": company_research_agent,
-}
-
-AGENT_LABELS = {
+AGENT_LABELS: dict[str, str] = {
     "job_search": "Job Search",
     "company_research": "Company Research",
 }
 
-__all__ = [
-    "job_search_agent",
-    "company_research_agent",
-    "AGENT_LOOKUP",
-    "AGENT_LABELS",
-]
+AVAILABLE_AGENTS: set[str] = set(AGENT_LABELS)
+
+__all__ = ["AGENT_LABELS", "AVAILABLE_AGENTS", "create_agent"]

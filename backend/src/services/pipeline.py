@@ -16,11 +16,11 @@ import uuid
 from collections.abc import AsyncGenerator
 
 from langchain_core.messages import AIMessage, ToolMessage
-from langgraph.graph.state import CompiledStateGraph
 
-from src.agents.graph import AGENT_LABELS, AGENT_LOOKUP
-from src.config import settings
+from src.agents.graph import AGENT_LABELS, AVAILABLE_AGENTS, create_agent
+from src.config import SUPPORTED_MODEL_IDS, settings
 from src.services import intent_parser, response_composer
+from src.services.usage_tracker import UsageTracker
 
 TOOL_DESCRIPTIONS: dict[str, str] = {
     "search_jobs": "Searching job boards...",
@@ -75,16 +75,20 @@ _SENTINEL_EVENT = "_agent_done"
 
 
 async def _stream_agent_events(
-    agent: CompiledStateGraph,
+    agent_key: str,
+    model_name: str,
     message: str,
     thread_id: str,
     recursion_limit: int,
+    tracker: UsageTracker,
     task_id: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Stream SSE events from one agent run.
 
     Yields regular SSE events plus a final sentinel with the agent's last text.
+    Extracts token_usage from every AIMessage for cost tracking.
     """
+    agent = create_agent(agent_key, model_name)
     config = {
         "configurable": {"thread_id": thread_id},
         "recursion_limit": recursion_limit,
@@ -110,6 +114,10 @@ async def _stream_agent_events(
                 msg = messages[-1] if messages else None
                 if not isinstance(msg, AIMessage):
                     continue
+
+                # --- Token extraction (every AIMessage, not just the final) ---
+                if usage := msg.response_metadata.get("token_usage"):
+                    tracker.record(usage)
 
                 step_count += 1
 
@@ -161,7 +169,9 @@ async def _stream_agent_events(
 
 async def _run_parallel_specialists(
     tasks: list[tuple[str, str, str, str]],
+    model_name: str,
     recursion_limit: int,
+    tracker: UsageTracker,
     agent_results: dict[str, str],
 ) -> AsyncGenerator[dict, None]:
     """Run multiple specialist agents in parallel, yielding interleaved SSE events.
@@ -173,13 +183,14 @@ async def _run_parallel_specialists(
     pending: set[asyncio.Task] = set()
 
     async def _worker(task_id: str, agent_key: str, message: str, thread_id: str) -> None:
-        agent = AGENT_LOOKUP[agent_key]
         try:
             async for event in _stream_agent_events(
-                agent,
+                agent_key,
+                model_name,
                 message,
                 thread_id,
                 recursion_limit,
+                tracker,
                 task_id=task_id,
             ):
                 if event["event"] == _SENTINEL_EVENT:
@@ -222,11 +233,18 @@ async def _run_parallel_specialists(
 # ---------------------------------------------------------------------------
 
 
-async def process_message(message: str) -> AsyncGenerator[dict, None]:
+async def process_message(
+    message: str,
+    model_name: str | None = None,
+) -> AsyncGenerator[dict, None]:
     """Process a user chat message through the 3-layer pipeline.
 
     Yields dicts with 'event' and 'data' keys for SSE streaming.
     """
+    # Resolve model — validate against supported list, fall back to default
+    model = model_name if model_name in SUPPORTED_MODEL_IDS else settings.agent_model
+    tracker = UsageTracker(model)
+
     # Layer 1: Deterministic intent parse
     parsed = intent_parser.parse(message)
     yield {
@@ -253,13 +271,14 @@ async def process_message(message: str) -> AsyncGenerator[dict, None]:
                 "output": {},
             },
         }
+        yield {"event": "usage", "data": await tracker.summary()}
         yield {"event": "done", "data": {}}
         return
 
     # Build specialist tasks
     specialist_tasks: list[tuple[str, str, str, str]] = []
     for i, agent_key in enumerate(parsed.agents_needed):
-        if agent_key not in AGENT_LOOKUP:
+        if agent_key not in AVAILABLE_AGENTS:
             continue  # Skip agents not yet implemented
         task_id = f"{agent_key}-{i}"
         label = AGENT_LABELS.get(agent_key, agent_key.replace("_", " ").title())
@@ -285,6 +304,7 @@ async def process_message(message: str) -> AsyncGenerator[dict, None]:
                 "output": {},
             },
         }
+        yield {"event": "usage", "data": await tracker.summary()}
         yield {"event": "done", "data": {}}
         return
 
@@ -295,10 +315,12 @@ async def process_message(message: str) -> AsyncGenerator[dict, None]:
         # Single agent — run sequentially
         task_id, agent_key, msg, thread_id = specialist_tasks[0]
         async for event in _stream_agent_events(
-            AGENT_LOOKUP[agent_key],
+            agent_key,
+            model,
             msg,
             thread_id,
             recursion_limit,
+            tracker,
             task_id=task_id,
         ):
             if event["event"] == _SENTINEL_EVENT:
@@ -310,7 +332,9 @@ async def process_message(message: str) -> AsyncGenerator[dict, None]:
         # Multiple agents — run in parallel
         async for event in _run_parallel_specialists(
             specialist_tasks,
+            model,
             recursion_limit,
+            tracker,
             agent_results,
         ):
             yield event
@@ -337,4 +361,5 @@ async def process_message(message: str) -> AsyncGenerator[dict, None]:
             },
         },
     }
+    yield {"event": "usage", "data": await tracker.summary()}
     yield {"event": "done", "data": {}}
