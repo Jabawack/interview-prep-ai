@@ -151,7 +151,9 @@ def _format_jobs(jobs: list[dict]) -> str:
         salary = job.get("salary", "")
         url = job.get("url", "")
 
-        line = f"{i}. **{title}** at {company}"
+        site = job.get("site", "")
+        site_tag = f"[{site}] " if site else ""
+        line = f"{i}. {site_tag}**{title}** at {company}"
         if location:
             line += f" — {location}"
         if salary:

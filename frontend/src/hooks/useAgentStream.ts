@@ -7,7 +7,7 @@ import {
 } from "@microsoft/fetch-event-source";
 
 import { API } from "@/lib/api";
-import type { AgentStep, ChatMessage, StepType } from "@/types";
+import type { AgentOutput, AgentStep, ChatMessage, StepType } from "@/types";
 
 interface UseAgentStreamReturn {
   messages: ChatMessage[];
@@ -15,6 +15,8 @@ interface UseAgentStreamReturn {
   error: string | null;
   sendMessage: (content: string) => void;
   reset: () => void;
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
 }
 
 let stepCounter = 0;
@@ -24,6 +26,7 @@ export function useAgentStream(): UseAgentStreamReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState("gpt-4o");
   const abortRef = useRef<AbortController | null>(null);
   const stepsRef = useRef<AgentStep[]>([]);
 
@@ -93,7 +96,7 @@ export function useAgentStream(): UseAgentStreamReturn {
       fetchEventSource(API.chatStream, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ message: content, model: selectedModel }),
         signal: ctrl.signal,
 
         async onopen(response) {
@@ -159,8 +162,9 @@ export function useAgentStream(): UseAgentStreamReturn {
                 taskId,
               });
               break;
-            case "response":
-              // Update assistant message with final content
+            case "response": {
+              // Update assistant message with final content + structured output
+              const output = data.output as AgentOutput | undefined;
               setMessages((prev) => {
                 const last = prev[prev.length - 1];
                 if (last && last.role === "assistant") {
@@ -173,9 +177,24 @@ export function useAgentStream(): UseAgentStreamReturn {
                     {
                       ...last,
                       content: data.content,
+                      output,
                       steps: completedSteps,
                       isStreaming: false,
                     },
+                  ];
+                }
+                return prev;
+              });
+              break;
+            }
+            case "usage":
+              // Attach usage data to the last assistant message
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.role === "assistant") {
+                  return [
+                    ...prev.slice(0, -1),
+                    { ...last, usage: data },
                   ];
                 }
                 return prev;
@@ -261,7 +280,7 @@ export function useAgentStream(): UseAgentStreamReturn {
         },
       });
     },
-    [addStep],
+    [addStep, selectedModel],
   );
 
   const reset = useCallback(() => {
@@ -272,5 +291,13 @@ export function useAgentStream(): UseAgentStreamReturn {
     setError(null);
   }, []);
 
-  return { messages, isStreaming, error, sendMessage, reset };
+  return {
+    messages,
+    isStreaming,
+    error,
+    sendMessage,
+    reset,
+    selectedModel,
+    setSelectedModel,
+  };
 }

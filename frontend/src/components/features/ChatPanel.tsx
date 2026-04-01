@@ -18,7 +18,10 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { AgentStep, ChatMessage, StepType } from "@/types";
+import type { AgentStep, ChatMessage, JobResult, StepType } from "@/types";
+import { JobCards } from "./JobCards";
+import { ModelPicker } from "./ModelPicker";
+import { UsageReport } from "./UsageReport";
 
 /* ------------------------------------------------------------------ */
 /*  Config                                                             */
@@ -223,12 +226,16 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   isStreaming: boolean;
   onSendMessage: (content: string) => void;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
 }
 
 export function ChatPanel({
   messages,
   isStreaming,
   onSendMessage,
+  selectedModel,
+  onModelChange,
 }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -281,7 +288,12 @@ export function ChatPanel({
         <div ref={bottomRef} />
       </div>
 
-      <InputBar disabled={isStreaming} onSend={onSendMessage} />
+      <InputBar
+        disabled={isStreaming}
+        onSend={onSendMessage}
+        selectedModel={selectedModel}
+        onModelChange={onModelChange}
+      />
     </div>
   );
 }
@@ -305,6 +317,22 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
   const hasSteps = steps.length > 0;
   const { preamble, sequence } = groupIntoCycles(steps);
 
+  // Extract structured jobs if available
+  const jobs: JobResult[] = message.output?.results?.jobs ?? [];
+
+  // Strip the "Found N job(s):" listing from the text when rendering cards
+  let contentWithoutJobs = "";
+  let followUp = "";
+  if (jobs.length > 0 && message.content) {
+    const parts = message.content.split(/\*\*What would you like to do next\?\*\*/);
+    const before = parts[0] ?? "";
+    followUp = parts[1] ? `**What would you like to do next?**${parts[1]}` : "";
+    // Remove the job listing block (lines starting with "**Found" through numbered items)
+    contentWithoutJobs = before
+      .replace(/\*\*Found \d+ job\(s\):\*\*[\s\S]*?(?=\n\n|$)/, "")
+      .trim();
+  }
+
   return (
     <div className="mb-4">
       <div className="flex gap-2">
@@ -324,10 +352,31 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
           {/* Final response content */}
           {message.content && (
             <div className="mt-2 rounded-2xl rounded-tl-md bg-zinc-100 px-4 py-2.5 text-sm dark:bg-zinc-800">
-              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                {message.content}
-              </div>
+              {jobs.length > 0 ? (
+                <div className="space-y-3">
+                  {contentWithoutJobs && (
+                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                      {contentWithoutJobs}
+                    </div>
+                  )}
+                  <JobCards jobs={jobs} />
+                  {followUp && (
+                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                      {followUp}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                  {message.content}
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Usage report */}
+          {message.usage && !message.isStreaming && (
+            <UsageReport usage={message.usage} />
           )}
 
           {/* Error */}
@@ -618,9 +667,13 @@ function StepRow({
 function InputBar({
   disabled,
   onSend,
+  selectedModel,
+  onModelChange,
 }: {
   disabled: boolean;
   onSend: (msg: string) => void;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
 }) {
   const [value, setValue] = useState("");
 
@@ -637,6 +690,11 @@ function InputBar({
       onSubmit={handleSubmit}
       className="flex gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800"
     >
+      <ModelPicker
+        value={selectedModel}
+        onChange={onModelChange}
+        disabled={disabled}
+      />
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}

@@ -25,6 +25,21 @@ export interface AgentStep {
 
 export type RunSeverity = "ok" | "warning" | "error";
 
+export interface UsageData {
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  llm_calls: number;
+  cost_usd: number;
+}
+
+export interface ModelInfo {
+  id: string;
+  input_cost_per_token: number;
+  output_cost_per_token: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -32,6 +47,32 @@ export interface ChatMessage {
   steps?: AgentStep[];
   isStreaming?: boolean;
   error?: string | null;
+  usage?: UsageData;
+  output?: AgentOutput;
+}
+
+export interface AgentOutput {
+  intent?: string;
+  entities?: Record<string, unknown>;
+  results?: {
+    jobs?: JobResult[];
+    company_profile?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  summary?: string;
+  follow_up_suggestions?: string[];
+  error?: string | null;
+}
+
+export interface JobResult {
+  title: string;
+  company: string;
+  location?: string;
+  url?: string;
+  salary?: string | null;
+  description?: string;
+  date_posted?: string;
+  site?: string;
 }
 
 export interface JobPosting {

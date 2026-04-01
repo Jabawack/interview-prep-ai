@@ -88,7 +88,9 @@ def _extract_company(text: str) -> str | None:
 def _extract_location(text: str) -> str | None:
     """Extract location from text."""
     patterns = [
-        r"(?:in|near|around)\s+((?:san\s+francisco|new\s+york|los\s+angeles|seattle|austin|"
+        r"(?:in|near|around)\s+((?:san\s+jose|san\s+francisco|south\s+bay|"
+        r"sunnyvale|mountain\s+view|palo\s+alto|santa\s+clara|cupertino|fremont|"
+        r"new\s+york|los\s+angeles|seattle|austin|"
         r"boston|chicago|denver|miami|remote|hybrid)[a-z\s,]*)",
         r"(remote|on-?site|hybrid)",
     ]

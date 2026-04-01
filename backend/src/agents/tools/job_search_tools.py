@@ -75,7 +75,18 @@ async def search_jobs(
             }
         )
 
-    return json.dumps({"jobs": jobs, "count": len(jobs)})
+    # Per-site breakdown so the agent can report which boards returned what
+    sites_searched = list({j["site"] for j in jobs if j["site"]})
+    by_site = {s: sum(1 for j in jobs if j["site"] == s) for s in sites_searched}
+
+    return json.dumps(
+        {
+            "jobs": jobs,
+            "count": len(jobs),
+            "sites_searched": sites_searched,
+            "counts_by_site": by_site,
+        }
+    )
 
 
 @tool
