@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     upstash_redis_rest_url: str = ""
     upstash_redis_rest_token: str = ""
 
+    # Clerk authentication
+    clerk_jwt_key: str = ""  # PEM public key from Clerk dashboard
+    clerk_authorized_parties: list[str] = ["http://localhost:3000"]
+
     # Optional LangSmith
     langchain_tracing_v2: bool = False
     langchain_api_key: str = ""

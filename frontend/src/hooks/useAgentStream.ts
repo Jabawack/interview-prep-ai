@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import {
   EventStreamContentType,
   fetchEventSource,
@@ -23,6 +24,7 @@ let stepCounter = 0;
 let messageCounter = 0;
 
 export function useAgentStream(): UseAgentStreamReturn {
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,10 +69,13 @@ export function useAgentStream(): UseAgentStreamReturn {
   );
 
   const sendMessage = useCallback(
-    (content: string) => {
+    async (content: string) => {
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+
+      // Get auth token
+      const token = await getToken();
 
       // Add user message
       const userMsg: ChatMessage = {
@@ -95,7 +100,10 @@ export function useAgentStream(): UseAgentStreamReturn {
 
       fetchEventSource(API.chatStream, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ message: content, model: selectedModel }),
         signal: ctrl.signal,
 
@@ -280,7 +288,7 @@ export function useAgentStream(): UseAgentStreamReturn {
         },
       });
     },
-    [addStep, selectedModel],
+    [addStep, selectedModel, getToken],
   );
 
   const reset = useCallback(() => {

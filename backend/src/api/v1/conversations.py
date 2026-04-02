@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
+from src.api.auth import CurrentUser
 from src.database import get_pool
 from src.models.schemas import ConversationOut, MessageOut
 
@@ -13,16 +14,22 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 
 @router.get("/", response_model=list[ConversationOut])
-async def list_conversations(limit: int = 50, offset: int = 0) -> list[ConversationOut]:
-    """List conversations, most recent first."""
+async def list_conversations(
+    user_id: CurrentUser,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ConversationOut]:
+    """List conversations for the authenticated user, most recent first."""
     pool = await get_pool()
     rows = await pool.fetch(
         """
         SELECT id, title, metadata, created_at, updated_at
         FROM conversations
+        WHERE user_id = $1
         ORDER BY updated_at DESC
-        LIMIT $1 OFFSET $2
+        LIMIT $2 OFFSET $3
         """,
+        user_id,
         limit,
         offset,
     )
@@ -39,12 +46,16 @@ async def list_conversations(limit: int = 50, offset: int = 0) -> list[Conversat
 
 
 @router.get("/{conversation_id}", response_model=ConversationOut)
-async def get_conversation(conversation_id: UUID) -> ConversationOut:
-    """Get a specific conversation."""
+async def get_conversation(conversation_id: UUID, user_id: CurrentUser) -> ConversationOut:
+    """Get a specific conversation owned by the authenticated user."""
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT id, title, metadata, created_at, updated_at FROM conversations WHERE id = $1",
+        """
+        SELECT id, title, metadata, created_at, updated_at
+        FROM conversations WHERE id = $1 AND user_id = $2
+        """,
         conversation_id,
+        user_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -59,10 +70,21 @@ async def get_conversation(conversation_id: UUID) -> ConversationOut:
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageOut])
 async def list_messages(
-    conversation_id: UUID, limit: int = 100, offset: int = 0
+    conversation_id: UUID,
+    user_id: CurrentUser,
+    limit: int = 100,
+    offset: int = 0,
 ) -> list[MessageOut]:
-    """List messages in a conversation, oldest first."""
+    """List messages in a conversation owned by the authenticated user."""
     pool = await get_pool()
+    # Verify ownership
+    owner = await pool.fetchval(
+        "SELECT user_id FROM conversations WHERE id = $1",
+        conversation_id,
+    )
+    if owner != user_id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
     rows = await pool.fetch(
         """
         SELECT id, role, content, reasoning_trace, created_at
@@ -90,9 +112,13 @@ async def list_messages(
 
 
 @router.delete("/{conversation_id}", status_code=204)
-async def delete_conversation(conversation_id: UUID) -> None:
-    """Delete a conversation and all its messages."""
+async def delete_conversation(conversation_id: UUID, user_id: CurrentUser) -> None:
+    """Delete a conversation owned by the authenticated user."""
     pool = await get_pool()
-    result = await pool.execute("DELETE FROM conversations WHERE id = $1", conversation_id)
+    result = await pool.execute(
+        "DELETE FROM conversations WHERE id = $1 AND user_id = $2",
+        conversation_id,
+        user_id,
+    )
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Conversation not found")

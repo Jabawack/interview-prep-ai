@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { UserButton } from "@clerk/nextjs";
 import {
   AlertTriangle,
   Bot,
@@ -247,9 +248,12 @@ export function ChatPanel({
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-zinc-200 p-3 dark:border-zinc-800">
         <h2 className="text-sm font-semibold">Interview Prep Chat</h2>
-        {isStreaming && (
-          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-        )}
+        <div className="flex items-center gap-3">
+          {isStreaming && (
+            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          )}
+          <UserButton />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">

@@ -18,6 +18,7 @@ venv/
 out/
 dist/
 build/
+*.tsbuildinfo
 *.egg-info/
 *.egg
 

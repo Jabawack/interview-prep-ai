@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 from starlette.requests import Request
 
+from src.api.auth import CurrentUser
 from src.config import SUPPORTED_MODEL_IDS, settings
 from src.models.schemas import ChatRequest
 from src.services.pipeline import process_message
@@ -23,7 +24,9 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/stream")
-async def chat_stream(body: ChatRequest, request: Request) -> EventSourceResponse:
+async def chat_stream(
+    body: ChatRequest, request: Request, user_id: CurrentUser
+) -> EventSourceResponse:
     """Process a chat message via SSE streaming.
 
     Sends the message through the 3-layer pipeline and streams events
